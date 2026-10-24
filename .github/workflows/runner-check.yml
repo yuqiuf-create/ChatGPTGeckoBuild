@@ -1,0 +1,11 @@
+name: Verify free runner
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/runner-check.yml'
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Runner is available"
