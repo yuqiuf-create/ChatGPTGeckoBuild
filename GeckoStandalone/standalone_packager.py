@@ -69,14 +69,14 @@ def build(base_archive):
     assert info["CFBundleIdentifier"] == "com.minh-ton.Reynard"
     old_exe = app / info["CFBundleExecutable"]
     app_ent = get_entitlements(old_exe)
+    new_app = app.parent / (app_name + ".app")
+    app.rename(new_app)
+    app = new_app
     extension_details = []
     for ext in sorted((app / "PlugIns").glob("*.appex")):
         ei = load(ext / "Info.plist")
         extension_details.append((ext, ei, ext / ei["CFBundleExecutable"],
                                   get_entitlements(ext / ei["CFBundleExecutable"])))
-    new_app = app.parent / (app_name + ".app")
-    app.rename(new_app)
-    app = new_app
     old_exe = app / old_exe.name
     new_exe = app / app_name
     old_exe.rename(new_exe)
@@ -121,6 +121,9 @@ def build(base_archive):
         app_ent["application-identifier"] = bundle_id
     sign(app / hook.name, {})
     sign(new_exe, app_ent)
+    license_file = Path("/tmp/REYNARD_LICENSE_GPL3.txt")
+    if license_file.is_file():
+        shutil.copy2(license_file, app / "LICENSE-GPL-3.0.txt")
     (app / "GeckoSourceAttribution.txt").write_text(
         "Reynard Gecko runtime: https://github.com/minh-ton/reynard-browser (GPL-3.0)\n"
         "Standalone modifications: https://github.com/yuqiuf-create/ChatGPTGeckoBuild\n"
