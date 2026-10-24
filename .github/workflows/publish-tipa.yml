@@ -1,0 +1,43 @@
+name: Publish ChatGPT Gecko TIPA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-tipa.yml'
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve already-built v0.3.9 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir -p ./release-files
+          gh run download 40052163679 \
+            --repo "${{ github.repository }}" \
+            --name "ChatGPTGecko-v0.3.9-iOS15-TrollStore" \
+            --dir ./release-files
+          find ./release-files -type f -maxdepth 2 -print
+          test -f ./release-files/ChatGPTGecko-v0.3.9-NavigationRecovery-iOS15.tipa
+          test "$(stat -c%s ./release-files/ChatGPTGecko-v0.3.9-NavigationRecovery-iOS15.tipa)" -gt 100000000
+          unzip -t ./release-files/ChatGPTGecko-v0.3.9-NavigationRecovery-iOS15.tipa | tail -1
+      - name: Publish direct release download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          FILE="./release-files/ChatGPTGecko-v0.3.9-NavigationRecovery-iOS15.tipa"
+          if gh release view v0.3.9 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload v0.3.9 "$FILE" --repo "${{ github.repository }}" --clobber
+          else
+            gh release create v0.3.9 "$FILE" \
+              --repo "${{ github.repository }}" \
+              --title "ChatGPT Gecko v0.3.9 – iOS 15 TrollStore" \
+              --notes "Unofficial Gecko-based ChatGPT standalone test build for iOS 15 / TrollStore. Adds native Back and Return-to-ChatGPT controls. Install as an update over the same app bundle; test on device before relying on it. Source credits Reynard GPL-3.0. This is not an official OpenAI app."
+          fi
+          gh release view v0.3.9 --repo "${{ github.repository }}" --json url,assets
