@@ -1,0 +1,68 @@
+name: Build ChatGPT Gecko Navigation Recovery
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'GeckoStandalone/**'
+      - '.github/workflows/build-chatgpt-gecko.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - name: Check out public standalone sources
+        uses: actions/checkout@v4
+      - name: Install packaging dependencies
+        run: |
+          set -eu
+          brew install ldid imagemagick
+          git clone --depth 1 https://github.com/tyilo/insert_dylib.git /tmp/insert_dylib
+          clang -O2 -o /tmp/insert_dylib_bin /tmp/insert_dylib/insert_dylib/main.c
+          sudo cp /tmp/insert_dylib_bin /usr/local/bin/insert_dylib
+      - name: Download upstream Gecko TrollStore app and GPL license
+        run: |
+          set -eu
+          curl --fail --location --retry 3 --retry-delay 3 \
+            https://github.com/minh-ton/reynard-browser/releases/download/0.18.0/Reynard-TrollStore.tipa \
+            -o /tmp/Reynard-TrollStore.tipa
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/minh-ton/reynard-browser/main/LICENSE \
+            -o /tmp/REYNARD_LICENSE_GPL3.txt
+          test "$(stat -f%z /tmp/Reynard-TrollStore.tipa)" -gt 50000000
+          unzip -t /tmp/Reynard-TrollStore.tipa | tail -1
+      - name: Create ChatGPT application icon
+        run: |
+          curl --fail --location --retry 3 \
+            'https://images.ctfassets.net/j22is2dtoxu1/intercom-img-d177d076c9a5453052925143/49d5d812b0a6fcc20a14faa8c629d9fb/icon-ios-1024_401x.png?fm=png&q=100&w=1024' \
+            -o /tmp/chatgpt-icon-original.png
+          magick /tmp/chatgpt-icon-original.png \
+            -alpha off -colorspace Gray -threshold 55% \
+            -resize 790x790 -background white -gravity center -extent 1024x1024 \
+            /tmp/chatgpt-icon-base.png
+      - name: Compile iOS 15 native navigation and download control
+        run: |
+          set -eu
+          SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          clang -arch arm64 -isysroot "$SDK" \
+            -miphoneos-version-min=15.0 \
+            -dynamiclib -fobjc-arc -fblocks -O2 \
+            -Wl,-install_name,@executable_path/ChatGPTStandaloneHook.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            GeckoStandalone/ChatGPTNavigationRecoveryHook.m \
+            GeckoStandalone/NativeDownloadRouter.m \
+            GeckoStandalone/DownloadControlLite.m \
+            -o /tmp/ChatGPTStandaloneHook.dylib
+          file /tmp/ChatGPTStandaloneHook.dylib
+      - name: Repackage and ad-hoc sign TrollStore app
+        run: |
+          python3 GeckoStandalone/standalone_packager.py /tmp/Reynard-TrollStore.tipa
+      - name: Upload installable TIPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatGPTGecko-v0.3.9-iOS15-TrollStore
+          path: dist-gecko/ChatGPTGecko-v0.3.9-NavigationRecovery-iOS15.tipa
+          retention-days: 30
+          if-no-files-found: error
