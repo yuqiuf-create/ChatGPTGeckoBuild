@@ -9,3 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Runner is available"
+  macos-check:
+    runs-on: macos-15
+    steps:
+      - run: xcrun --sdk iphoneos --show-sdk-path
